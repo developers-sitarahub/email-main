@@ -7,7 +7,7 @@ import { google } from "googleapis";
 
 export async function POST(req: Request) {
   try {
-    const { to, emailData, draftId } = await req.json();
+    const { to, emailData, draftId, attachments } = await req.json();
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
@@ -67,23 +67,66 @@ export async function POST(req: Request) {
       htmlContent = `<p>${JSON.stringify(emailData)}</p>`;
     }
 
-    const htmlBody = `
+    const htmlBodyRaw = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">
         ${htmlContent}
       </div>
     `;
 
+    // Convert base64 inline images to cid attachments
+    const inlineImages: any[] = [];
+    const htmlBody = htmlBodyRaw.replace(/src="data:image\/([^;]+);base64,([^"]+)"/g, (match, type, data) => {
+      const cid = `inline_${inlineImages.length}@email`;
+      inlineImages.push({ cid, type: `image/${type}`, base64Data: data });
+      return `src="cid:${cid}"`;
+    });
+
     // Properly format the email as MIME for Gmail API
     const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString("base64")}?=`;
+    const boundary = "boundary_" + Math.random().toString(36).substring(2);
+
     const messageParts = [
       `From: ${session.user.name ?? "Outreach"} <${session.user.email}>`,
       `To: ${to}`,
       `Subject: ${utf8Subject}`,
-      "Content-Type: text/html; charset=utf-8",
       "MIME-Version: 1.0",
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/html; charset=utf-8",
       "",
       htmlBody,
     ];
+
+    if (inlineImages.length > 0) {
+      inlineImages.forEach((img: any) => {
+        messageParts.push(
+          `--${boundary}`,
+          `Content-Type: ${img.type}; name="${img.cid}"`,
+          `Content-ID: <${img.cid}>`,
+          `Content-Disposition: inline; filename="${img.cid}"`,
+          "Content-Transfer-Encoding: base64",
+          "",
+          img.base64Data
+        );
+      });
+    }
+
+    if (attachments && Array.isArray(attachments)) {
+      attachments.forEach((att: any) => {
+        const base64Data = att.content.includes(',') ? att.content.split(',')[1] : att.content;
+        messageParts.push(
+          `--${boundary}`,
+          `Content-Type: ${att.type || 'application/octet-stream'}; name="${att.name}"`,
+          `Content-Disposition: attachment; filename="${att.name}"`,
+          "Content-Transfer-Encoding: base64",
+          "",
+          base64Data
+        );
+      });
+    }
+
+    messageParts.push(`--${boundary}--`);
     const message = messageParts.join("\r\n");
 
     // Base64url encode the message as required by Gmail API

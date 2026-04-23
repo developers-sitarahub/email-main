@@ -41,6 +41,39 @@ export default function Dashboard() {
   const [includeCta, setIncludeCta] = useState(true);
   const [includeSignature, setIncludeSignature] = useState(true);
 
+  // Custom Uploads
+  const [customHeaderImage, setCustomHeaderImage] = useState<string | null>(null);
+  const [customSignatureHtml, setCustomSignatureHtml] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<{ name: string, type: string, content: string }[]>([]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      axios.get("/api/user/settings").then((res) => {
+        if (res.data.headerImage) setCustomHeaderImage(res.data.headerImage);
+        if (res.data.signatureHtml) setCustomSignatureHtml(res.data.signatureHtml);
+      }).catch(err => console.error("Failed to load settings", err));
+    }
+  }, [status]);
+
+  const saveSettings = async (headerImg: string | null, sigHtml: string | null) => {
+    try {
+      await axios.post("/api/user/settings", {
+        headerImage: headerImg,
+        signatureHtml: sigHtml
+      });
+    } catch (error) {
+      console.error("Failed to save settings", error);
+    }
+  };
+
+  const calculateRecipientCount = useCallback((data: string[][]) => {
+    if (data.length === 0) return 0;
+    const hasHeader = data[0].some(cell =>
+      cell.toLowerCase().includes("email") || cell.toLowerCase().includes("name")
+    );
+    return hasHeader ? Math.max(0, data.length - 1) : data.length;
+  }, []);
+
   const handleDataChange = useCallback((data: string[][]) => {
     setCsvData(data);
     setPreviews([]);
@@ -64,19 +97,32 @@ export default function Dashboard() {
 
       const { results, headers: returnedHeaders } = response.data;
       setHeaders(returnedHeaders || []);
-      
+
       const processedPreviews: EmailPreview[] = results;
       for (let i = 0; i < processedPreviews.length; i++) {
         await new Promise((resolve) => setTimeout(resolve, 300));
         setPreviews((prev) => [...prev, processedPreviews[i]]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating emails:", error);
-      alert("Failed to generate emails.");
+      const msg = error.response?.data?.error || error.message;
+      if (msg.includes("503") || msg.includes("high demand")) {
+        alert("The AI service is currently busy (High Demand). Please wait a minute and try again.");
+      } else {
+        alert("Failed to generate emails: " + msg);
+      }
     } finally {
       setIsProcessing(false);
     }
   }, [csvData, prompt, model]);
+
+  const handlePreviewEdit = useCallback((index: number, newGenerated: string) => {
+    setPreviews((prev) => {
+      const newPreviews = [...prev];
+      newPreviews[index] = { ...newPreviews[index], generated: newGenerated };
+      return newPreviews;
+    });
+  }, []);
 
   const handleSendAll = useCallback(async () => {
     if (previews.length === 0) return;
@@ -94,12 +140,43 @@ export default function Dashboard() {
     for (const preview of previews) {
       try {
         const recipientEmail = emailIdx >= 0 ? preview.original[emailIdx] : preview.original[0];
-        
+
         let parsedPayload = typeof preview.generated === 'string' ? JSON.parse(preview.generated) : preview.generated;
+
+        // Filter out blocks if user explicitly disabled them
+        if (parsedPayload && parsedPayload.blocks) {
+          if (!includeHeaderImage) {
+            parsedPayload.blocks = parsedPayload.blocks.filter((b: any) => b.type !== 'image');
+          }
+          if (!includeCta) {
+            parsedPayload.blocks = parsedPayload.blocks.filter((b: any) => b.type !== 'cta');
+          }
+          if (!includeSignature) {
+            parsedPayload.blocks = parsedPayload.blocks.filter((b: any) => b.type !== 'signature');
+          }
+
+          // Inject custom header and signature if applicable
+          if (customHeaderImage && includeHeaderImage) {
+            const headerBlock = parsedPayload.blocks.find((b: any) => b.type === 'image');
+            if (headerBlock) {
+              headerBlock.content.url = customHeaderImage;
+            } else {
+              parsedPayload.blocks.unshift({ type: 'image', content: { url: customHeaderImage }, styles: { alignment: 'center' } });
+            }
+          }
+          if (customSignatureHtml && includeSignature) {
+            const sigBlock = parsedPayload.blocks.find((b: any) => b.type === 'signature');
+            if (sigBlock) {
+              sigBlock.content.text = customSignatureHtml;
+              sigBlock.isHtml = true; // flag to render as HTML
+            }
+          }
+        }
 
         await axios.post("/api/send-email", {
           to: recipientEmail || "unknown@example.com",
-          emailData: parsedPayload
+          emailData: parsedPayload,
+          attachments: attachments
         });
         setSentEmails((prev) => prev + 1);
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -181,6 +258,18 @@ export default function Dashboard() {
               onIncludeCtaChange={setIncludeCta}
               includeSignature={includeSignature}
               onIncludeSignatureChange={setIncludeSignature}
+              customHeaderImage={customHeaderImage}
+              onCustomHeaderImageChange={(val) => {
+                setCustomHeaderImage(val);
+                saveSettings(val, customSignatureHtml);
+              }}
+              customSignatureHtml={customSignatureHtml}
+              onCustomSignatureHtmlChange={(val) => {
+                setCustomSignatureHtml(val);
+                saveSettings(customHeaderImage, val);
+              }}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
             />
             <ChatInterface
               onApplyPrompt={setPrompt}
@@ -194,17 +283,23 @@ export default function Dashboard() {
               previews={previews}
               isProcessing={isProcessing}
               onGenerate={handleProcess}
+              onPreviewEdit={handlePreviewEdit}
               hasData={csvData.length > 0}
               signature={signature}
               ctaText={ctaText}
               ctaLink={ctaLink}
+              customHeaderImage={customHeaderImage}
+              customSignatureHtml={customSignatureHtml}
+              includeHeaderImage={includeHeaderImage}
+              includeCta={includeCta}
+              includeSignature={includeSignature}
             />
           </div>
         </div>
       </main>
 
       <ActionBar
-        totalEmails={csvData.length}
+        totalEmails={calculateRecipientCount(csvData)}
         sentEmails={sentEmails}
         isSending={isSending}
         onSendAll={handleSendAll}
