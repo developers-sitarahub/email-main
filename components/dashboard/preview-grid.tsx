@@ -156,24 +156,36 @@ export function PreviewGrid({
                       delay: index * 0.1,
                       ease: [0.16, 1, 0.3, 1]
                     }}
-                    className={`rounded-xl border ${preview.status === "failed" ? "border-destructive/30 bg-destructive/5" : "border-border bg-gradient-to-br from-secondary/30 to-transparent"} overflow-hidden`}
+                    className={`rounded-xl border transition-all ${
+                      preview.status === "failed" 
+                        ? "border-red-500/40 bg-red-50/5 dark:bg-red-950/5 shadow-lg shadow-red-500/5" 
+                        : "border-border bg-gradient-to-br from-secondary/30 to-transparent"
+                    } overflow-hidden`}
                   >
                     {/* Card Header */}
-                    <div className={`flex items-center justify-between px-4 py-3 border-b ${preview.status === "failed" ? "border-destructive/20 bg-destructive/10" : "border-border bg-gradient-to-r from-primary/5 to-accent/5 dark:from-primary/10 dark:to-accent/10"}`}>
+                    <div className={`flex items-center justify-between px-4 py-3 border-b ${
+                      preview.status === "failed" 
+                        ? "border-red-500/20 bg-red-500/10" 
+                        : "border-border bg-gradient-to-r from-primary/5 to-accent/5 dark:from-primary/10 dark:to-accent/10"
+                    }`}>
                       <div className="flex items-center gap-2">
-                        <Mail className={`w-4 h-4 ${preview.status === "failed" ? "text-destructive" : "text-primary"}`} />
-                        <span className="text-xs font-medium text-foreground">
+                        <Mail className={`w-4 h-4 ${preview.status === "failed" ? "text-red-500" : "text-primary"}`} />
+                        <span className="text-xs font-semibold text-foreground">
                           Email #{index + 1}
                         </span>
                         {(failedIndices.has(index) || preview.status === "failed") && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 border border-destructive/30 text-destructive text-[10px] font-semibold">
+                          <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-500 text-[10px] font-bold uppercase tracking-wider animate-pulse">
                             <AlertTriangle className="w-2.5 h-2.5" />
-                            {preview.status === "failed" ? "Invalid Email" : "Send Failed"}
+                            {preview.status === "failed" ? "Missing Email Address" : "Send Failed"}
                           </span>
                         )}
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full ${preview.status === "failed" ? "bg-destructive/10 text-destructive" : "bg-gradient-to-r from-primary/10 to-accent/10 text-primary dark:text-accent"} text-[10px] font-semibold`}>
-                        {preview.status === "failed" ? "Failed" : "AI Generated"}
+                      <span className={`px-2 py-0.5 rounded-full ${
+                        preview.status === "failed" 
+                          ? "bg-red-500/10 text-red-500 border border-red-500/20" 
+                          : "bg-gradient-to-r from-primary/10 to-accent/10 text-primary dark:text-accent"
+                      } text-[10px] font-bold uppercase tracking-wider`}>
+                        {preview.status === "failed" ? "Skipped" : "AI Generated"}
                       </span>
                     </div>
 
@@ -187,6 +199,14 @@ export function PreviewGrid({
                           </span>
                         </div>
                         <div className="p-3 rounded-lg bg-input border border-border">
+                          {preview.status === "failed" && (
+                            <div className="mb-2 pb-2 border-b border-red-500/20">
+                              <span className="text-[10px] font-bold text-red-500 uppercase tracking-wide block mb-1">Status:</span>
+                              <span className="text-[11px] font-medium text-red-500/80 leading-normal block">
+                                No email address found in this row. This recipient will be automatically skipped during campaign dispatch.
+                              </span>
+                            </div>
+                          )}
                           {preview.recipientEmail && preview.recipientEmail !== "INVALID_EMAIL" && (
                             <div className="mb-2 pb-2 border-b border-border/50">
                               <span className="text-[10px] font-semibold text-primary block mb-0.5">Extracted Email:</span>
@@ -222,22 +242,32 @@ export function PreviewGrid({
                             <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">
                               Generated Email
                             </span>
-                            {preview.recipientEmail && preview.recipientEmail !== "INVALID_EMAIL" && (
+                            {preview.status === "failed" ? (
                               <>
                                 <span className="text-muted-foreground/30">•</span>
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-[11px] font-medium text-foreground px-2 py-0.5 rounded bg-secondary/50 border border-border/50 flex items-center gap-1.5">
-                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">To:</span>
-                                    {preview.recipientEmail}
-                                  </span>
-                                  {ccEmail && (
-                                    <span className="text-[11px] font-medium text-foreground px-2 py-0.5 rounded bg-secondary/30 border border-border/30 flex items-center gap-1.5">
-                                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Cc:</span>
-                                      {ccEmail}
-                                    </span>
-                                  )}
-                                </div>
+                                <span className="text-[11px] font-semibold text-red-500 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 flex items-center gap-1.5 select-none animate-pulse">
+                                  <span className="text-[9px] font-bold text-red-500 uppercase">To:</span>
+                                  [NO EMAIL DETECTED]
+                                </span>
                               </>
+                            ) : (
+                              preview.recipientEmail && preview.recipientEmail !== "INVALID_EMAIL" && (
+                                <>
+                                  <span className="text-muted-foreground/30">•</span>
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[11px] font-medium text-foreground px-2 py-0.5 rounded bg-secondary/50 border border-border/50 flex items-center gap-1.5">
+                                      <span className="text-[9px] font-bold text-muted-foreground uppercase">To:</span>
+                                      {preview.recipientEmail}
+                                    </span>
+                                    {ccEmail && (
+                                      <span className="text-[11px] font-medium text-foreground px-2 py-0.5 rounded bg-secondary/30 border border-border/30 flex items-center gap-1.5">
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase">Cc:</span>
+                                        {ccEmail}
+                                      </span>
+                                    )}
+                                  </div>
+                                </>
+                              )
                             )}
                           </div>
                           {isEditing ? (

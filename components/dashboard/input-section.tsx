@@ -428,13 +428,39 @@ export function InputSection({
                           const currentRows = dataRows.slice(startIndex, startIndex + rowsPerPage);
                           return currentRows.map((row, i) => {
                             const originalRowIndex = hasHeaderRow ? startIndex + i + 1 : startIndex + i;
+                            const hasEmailInRow = row.some(cell => extractEmails(cell).length > 0);
                             return (
-                              <tr key={originalRowIndex} className="transition-colors hover:bg-secondary/20">
-                                <td className="px-4 py-2 text-muted-foreground/60 text-center border-r border-border/50 font-mono text-[10px]">{startIndex + i + 1}</td>
+                              <tr 
+                                key={originalRowIndex} 
+                                className={`transition-colors ${
+                                  hasEmailInRow 
+                                    ? "hover:bg-secondary/20" 
+                                    : "bg-red-500/5 dark:bg-red-950/15 hover:bg-red-500/10"
+                                }`}
+                              >
+                                <td className={`px-4 py-2 text-center border-r border-border/50 font-mono text-[10px] ${
+                                  !hasEmailInRow 
+                                    ? "text-red-500 font-bold bg-red-500/10 border-r-red-500/20" 
+                                    : "text-muted-foreground/60"
+                                }`}>
+                                  {startIndex + i + 1}
+                                </td>
                                 {row.map((cell, j) => {
                                   const isEmail = extractEmails(cell).length > 0;
                                   return (
-                                    <td key={j} className={`px-4 py-2 whitespace-nowrap max-w-[250px] truncate ${isEmail ? "text-primary font-medium bg-primary/5" : "text-foreground"}`} title={String(cell)}>{String(cell)}</td>
+                                    <td 
+                                      key={j} 
+                                      className={`px-4 py-2 whitespace-nowrap max-w-[250px] truncate ${
+                                        !hasEmailInRow 
+                                          ? "text-red-500 dark:text-red-400 font-medium" 
+                                          : isEmail 
+                                            ? "text-primary font-semibold bg-primary/5" 
+                                            : "text-foreground"
+                                      }`} 
+                                      title={String(cell)}
+                                    >
+                                      {String(cell)}
+                                    </td>
                                   );
                                 })}
                               </tr>
@@ -582,12 +608,41 @@ export function InputSection({
                   <tbody className="divide-y divide-border">
                     {(hasHeaderRow ? parsedData.slice(1) : parsedData).map((row, i) => {
                       const originalRowIndex = hasHeaderRow ? i + 1 : i;
+                      const hasEmailInRow = row.some(cell => extractEmails(cell).length > 0);
                       return (
-                        <tr key={originalRowIndex} className="transition-colors hover:bg-secondary/20">
-                          <td className="px-4 py-2 text-muted-foreground/60 text-center border-r border-border/50 font-mono text-xs">{i + 1}</td>
-                          {row.map((cell, j) => (
-                            <td key={j} className="px-4 py-2 whitespace-nowrap max-w-[400px] truncate text-foreground" title={cell}>{cell}</td>
-                          ))}
+                        <tr 
+                          key={originalRowIndex} 
+                          className={`transition-colors ${
+                            hasEmailInRow 
+                              ? "hover:bg-secondary/20" 
+                              : "bg-red-500/5 dark:bg-red-950/15 hover:bg-red-500/10"
+                          }`}
+                        >
+                          <td className={`px-4 py-2 text-center border-r border-border/50 font-mono text-xs ${
+                            !hasEmailInRow 
+                              ? "text-red-500 font-bold bg-red-500/10 border-r-red-500/20" 
+                              : "text-muted-foreground/60"
+                          }`}>
+                            {i + 1}
+                          </td>
+                          {row.map((cell, j) => {
+                            const isEmail = extractEmails(cell).length > 0;
+                            return (
+                              <td 
+                                key={j} 
+                                className={`px-4 py-2 whitespace-nowrap max-w-[400px] truncate ${
+                                  !hasEmailInRow 
+                                    ? "text-red-500 dark:text-red-400 font-medium" 
+                                    : isEmail 
+                                      ? "text-primary font-semibold bg-primary/5" 
+                                      : "text-foreground"
+                                }`} 
+                                title={String(cell)}
+                              >
+                                {cell}
+                              </td>
+                            );
+                          })}
                         </tr>
                       );
                     })}

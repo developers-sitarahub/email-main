@@ -224,19 +224,27 @@ export default function Dashboard() {
 
     for (let i = 0; i < previews.length; i++) {
       const preview = previews[i];
-      try {
-        let recipientEmail = preview.recipientEmail && preview.recipientEmail !== "INVALID_EMAIL"
-          ? preview.recipientEmail
-          : "";
 
-        if (!recipientEmail) {
-          if (Array.isArray(preview.original)) {
-            recipientEmail = emailIdx >= 0 ? preview.original[emailIdx] : preview.original[0];
-          } else if (typeof preview.original === 'object' && preview.original !== null) {
-            recipientEmail = emailHeaderKey ? preview.original[emailHeaderKey] : Object.values(preview.original)[0] as string;
-          }
+      let recipientEmail = preview.recipientEmail && preview.recipientEmail !== "INVALID_EMAIL"
+        ? preview.recipientEmail
+        : "";
+
+      if (!recipientEmail) {
+        if (Array.isArray(preview.original)) {
+          recipientEmail = emailIdx >= 0 ? preview.original[emailIdx] : preview.original[0];
+        } else if (typeof preview.original === 'object' && preview.original !== null) {
+          recipientEmail = emailHeaderKey ? preview.original[emailHeaderKey] : Object.values(preview.original)[0] as string;
         }
+      }
 
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!recipientEmail || !emailRegex.test(recipientEmail) || preview.status === "failed") {
+        console.warn(`Skipping send for index ${i} (no valid email address).`);
+        setFailedEmails((prev) => new Set(prev).add(i));
+        continue;
+      }
+
+      try {
         let parsedPayload = typeof preview.generated === 'string' ? JSON.parse(preview.generated) : preview.generated;
 
         // Filter out blocks if user explicitly disabled them
@@ -254,11 +262,11 @@ export default function Dashboard() {
           // Inject custom header and signature if applicable
           parsedPayload.blocks = parsedPayload.blocks.filter((b: any) => b.type !== 'image');
           if (includeHeaderImage && customHeaderImage) {
-            parsedPayload.blocks.unshift({ 
-              type: 'image', 
-              content: { url: customHeaderImage }, 
+            parsedPayload.blocks.unshift({
+              type: 'image',
+              content: { url: customHeaderImage },
               styles: { alignment: 'center' },
-              isSaved: true 
+              isSaved: true
             });
           }
           // Enforce CTA before signature
@@ -279,11 +287,11 @@ export default function Dashboard() {
                 sigBlock.isHtml = true;
                 sigBlock.isSaved = true;
               } else {
-                parsedPayload.blocks.push({ 
-                  type: 'signature', 
-                  content: { text: sigHtml }, 
+                parsedPayload.blocks.push({
+                  type: 'signature',
+                  content: { text: sigHtml },
                   isHtml: true,
-                  isSaved: true 
+                  isSaved: true
                 });
               }
             }
@@ -291,7 +299,7 @@ export default function Dashboard() {
         }
 
         await axios.post("/api/send-email", {
-          to: recipientEmail || "unknown@example.com",
+          to: recipientEmail,
           cc: ccEmail,
           emailData: parsedPayload,
           attachments: attachments
@@ -360,8 +368,8 @@ export default function Dashboard() {
           {/* Top Row: Data Input & Brand Assets (Aligned Heights) */}
           <div className="grid gap-8 xl:grid-cols-2 grid-cols-1">
             <div className="h-auto xl:h-[520px]">
-              <InputSection 
-                onDataChange={handleDataChange} 
+              <InputSection
+                onDataChange={handleDataChange}
                 activeTab={activeTab}
                 fileName={fileName}
                 parsedData={parsedData}
